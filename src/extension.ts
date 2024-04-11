@@ -31,7 +31,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Start all the language-specific components.
     ...langs.map(lang => makeOnSaveRunner(output.local(alloglot.components.onSaveRunner).local(lang.languageId), lang)),
-    ...langs.map(lang => makeAnnotations(output.local(alloglot.components.annotations).local(lang.languageId), lang)),
+    ...langs.map(lang => makeAnnotations(output.local(alloglot.components.annotations).local(lang.languageId), lang, verboseOutput)),
     ...langs.map(lang => makeFormatter(output.local(alloglot.components.formatter).local(lang.languageId), lang, verboseOutput)),
     ...langs.map(lang => makeClient(output.local(alloglot.components.client).local(lang.languageId), lang)),
     ...langs.map(lang => makeTags(output.local(alloglot.components.tags).local(lang.languageId), grepPath, lang, verboseOutput))
