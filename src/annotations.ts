@@ -89,7 +89,7 @@ function watchAnnotationsFile(languageId: string, cfg: AnnotationsConfig, output
     const startLine = startLinePath(json) || 1
     const startColumn = startColumnPath(json) || 1
     const endLine = endLinePath(json) || startLine
-    const endColumn = includeEndChar(endColumnPath(json)) || startColumn
+    const endColumn = includeEndChar(endColumnPath(json)) || (startColumn + 1)
 
     const replacements: Array<string> =
       typeof replacementsPath(json) === 'string'
