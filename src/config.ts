@@ -166,19 +166,21 @@ export type AnnotationsConfig = {
   file: string
 
   /**
-   * `json` for a top-level array of objects.
-   * `jsonl` for a newline-separated stream of objects.
+   * The format of the annotations file.
+   * `json` for a top-level array of annotation objects.
+   * `jsonl` for a newline-separated stream of annotation objects.
+   * A path to an array of annotation objects for a top-level JSON object.
    */
-  format: 'json' | 'jsonl'
+  format: 'json' | 'jsonl' | Array<string>
 
   /**
-   * Mapping between properties of the JSON objects and properties of `Annotation`.
+   * Mapping between properties of a compiler-generated annotation object and properties of `Annotation`.
    */
   mapping: AnnotationsMapping
 }
 
 /**
- * Intermediate representation of compiler-generated JSON output and VS Code diagnostics.
+ * Intermediate representation of compiler-generated annotation object and VS Code diagnostics.
  */
 export type Annotation = {
   source: string
@@ -189,7 +191,7 @@ export type Annotation = {
   endLine: number
   endColumn: number
   message: string
-  replacements: Array<string>
+  replacements?: Array<string>
   referenceCode?: string
 }
 
@@ -204,6 +206,7 @@ export type AnnotationsMapping = {
   startColumn?: Array<string>
   endLine?: Array<string>
   endColumn?: Array<string>
+  includeEndColumn?: boolean
   source?: Array<string>
   severity?: Array<string>
   replacements?: Array<string>

@@ -6,6 +6,11 @@ This project adhere's to [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [unreleased]
 
+- Add `LanguageConfig.serverArgs` to pass arguments to language server.
+- Add `includeEndColumn` to `AnnotationsMapping`. Use this when the diagnostics file includes the last character in it's `endColoum` (VS Code does not, by default).
+- `AnnotationsConfig.format` now accepts an array of strings. Use this to path to array of diagnostics, in case diagnostics file is an object.
+- Add verbose output to annotations provider.
+
 ## [4.0.0]
 
 - remove `deactiveCommand` b/c we couldn't guarantee it would always run.

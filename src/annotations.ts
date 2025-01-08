@@ -37,13 +37,14 @@ import { dirname, isAbsolute } from 'path'
 import * as vscode from 'vscode'
 
 import { Annotation, AnnotationsConfig, LanguageConfig, alloglot } from './config'
+import { IHierarchicalOutputChannel } from './utils'
 
-export function makeAnnotations(output: vscode.OutputChannel, config: LanguageConfig): vscode.Disposable {
+export function makeAnnotations(output: IHierarchicalOutputChannel, config: LanguageConfig, verboseOutput: boolean): vscode.Disposable {
   output.appendLine(alloglot.ui.startingAnnotations)
   const { languageId, annotations } = config
   if (!languageId || !annotations || annotations.length === 0) return vscode.Disposable.from()
 
-  const watchers: Array<vscode.Disposable> = annotations.map(cfg => watchAnnotationsFile(languageId, cfg))
+  const watchers: Array<vscode.Disposable> = annotations.map(cfg => watchAnnotationsFile(languageId, cfg, verboseOutput ? output.local(cfg.file).split() : undefined))
 
   const quickFixes = vscode.languages.registerCodeActionsProvider(
     languageId,
@@ -58,8 +59,14 @@ export function makeAnnotations(output: vscode.OutputChannel, config: LanguageCo
   )
 }
 
-function watchAnnotationsFile(languageId: string, cfg: AnnotationsConfig): vscode.Disposable {
+function watchAnnotationsFile(languageId: string, cfg: AnnotationsConfig, output?: vscode.OutputChannel): vscode.Disposable {
+  const stripAnsi: (raw: string) => string = require('strip-ansi').default
+  const includeEndChar = cfg.mapping.includeEndColumn
+    ? (n: number | undefined) => n && n + 1
+    : (n: number | undefined) => n
+
   const diagnostics = vscode.languages.createDiagnosticCollection(`${alloglot.collections.annotations}-${languageId}-${cfg.file}`)
+  output?.appendLine(`Created diagnostic collection: ${diagnostics.name}`)
 
   const messagePath = path<string>(cfg.mapping.message)
   const filePath = path<string>(cfg.mapping.file)
@@ -73,38 +80,48 @@ function watchAnnotationsFile(languageId: string, cfg: AnnotationsConfig): vscod
   const referenceCodePath = path<string | number>(cfg.mapping.referenceCode)
 
   function marshalAnnotation(json: any): Annotation | undefined {
-    const message = messagePath(json)
+    output?.appendLine(`marshalAnnotation <- ${JSON.stringify(json)}`)
+    const ansiMessage = messagePath(json)
+    const message = ansiMessage ? stripAnsi(ansiMessage) : undefined
     const file = filePath(json)
     if (!message || !file) return
 
-    const startLine = startLinePath(json) || 0
-    const startColumn = startColumnPath(json) || 0
+    const startLine = startLinePath(json) || 1
+    const startColumn = startColumnPath(json) || 1
     const endLine = endLinePath(json) || startLine
-    const endColumn = endColumnPath(json) || startColumn
+    const endColumn = includeEndChar(endColumnPath(json)) || (startColumn + 1)
 
     const replacements: Array<string> =
       typeof replacementsPath(json) === 'string'
         ? [replacementsPath(json) as string]
         : replacementsPath(json) as Array<string>
 
-    return {
-      message, file, startLine, startColumn, endLine, endColumn, replacements,
-      source: sourcePath(json) || `${cfg.file}`,
-      severity: parseSeverity(severityPath(json)),
-      referenceCode: referenceCodePath(json)?.toString(),
-    }
+    const source = sourcePath(json) || `${cfg.file}`
+    const severity = parseSeverity(severityPath(json))
+    const referenceCode = referenceCodePath(json)?.toString()
+
+    const result = {message, file, startLine, startColumn, endLine, endColumn, replacements, source, severity, referenceCode}
+    output?.appendLine(`marshalAnnotation -> ${JSON.stringify(result)}`)
+
+    return result
   }
 
   function readAnnotations(bytes: Uint8Array): Array<Annotation> {
     const contents = Buffer.from(bytes).toString('utf-8')
     const jsons: Array<any> = cfg.format === 'jsonl'
       ? contents.split('\n').map(line => JSON.parse(line))
-      : JSON.parse(contents)
+      : Array.isArray(cfg.format)
+        ? path(cfg.format)(JSON.parse(contents))
+        : JSON.parse(contents)
+
+    output?.appendLine(`readAnnotations <- ${JSON.stringify(jsons)}`)
     const annotations = jsons.map(marshalAnnotation).filter(x => x) as Array<Annotation>
+    output?.appendLine(`readAnnotations -> ${JSON.stringify(annotations)}`)
     return annotations
   }
 
   function annotationsBySourceFile(annotations: Array<Annotation>): Map<string, Array<Annotation>> {
+    output?.appendLine(`annotationsBySourceFile <- ${JSON.stringify(annotations)}`)
     const sorted = new Map<string, Array<Annotation>>()
     annotations.forEach(annotation => {
       const annotationsForFile = sorted.get(annotation.file)
@@ -112,17 +129,23 @@ function watchAnnotationsFile(languageId: string, cfg: AnnotationsConfig): vscod
         ? annotationsForFile.push(annotation)
         : sorted.set(annotation.file, [annotation])
     })
+    output?.appendLine(`annotationsBySourceFile -> ${JSON.stringify(sorted)}`)
     return sorted
   }
 
   function addAnnotations(annFile: vscode.Uri): void {
+    output?.appendLine('entering addAnnotations')
     diagnostics.clear()
     const basedir = vscode.Uri.file(dirname(annFile.fsPath))
+    output?.appendLine(`basedir: ${basedir}`)
     vscode.workspace.fs.readFile(annFile).then(bytes => {
       annotationsBySourceFile(readAnnotations(bytes)).forEach((anns, srcFile) => {
         const srcUri = fileUri(basedir, srcFile)
-        const diags = anns.map(ann => annotationAsDiagnostic(basedir, ann))
+        output?.appendLine(`srcUri: ${srcUri}`)
+        const diags = anns.map(ann => annotationAsDiagnostic(basedir, ann, output))
+        output?.appendLine(`diags: ${JSON.stringify(diags)}`)
         diagnostics.set(srcUri, diags)
+        output?.appendLine('leaving addAnnotations')
       })
     })
   }
@@ -147,7 +170,8 @@ function watchAnnotationsFile(languageId: string, cfg: AnnotationsConfig): vscod
   return vscode.Disposable.from(cleanup, ...watchers)
 }
 
-function annotationAsDiagnostic(basedir: vscode.Uri, ann: Annotation): vscode.Diagnostic {
+function annotationAsDiagnostic(basedir: vscode.Uri, ann: Annotation, output?: vscode.OutputChannel): vscode.Diagnostic {
+  output?.appendLine(`annotationAsDiagnostic <- ${basedir}, ${JSON.stringify(ann)}`)
   const range = new vscode.Range(
     new vscode.Position(ann.startLine - 1, ann.startColumn - 1),
     new vscode.Position(ann.endLine - 1, ann.endColumn - 1)
@@ -155,10 +179,11 @@ function annotationAsDiagnostic(basedir: vscode.Uri, ann: Annotation): vscode.Di
 
   // we are abusing the relatedInformation field to store replacements
   // we look them up later when we need to create quick fixes
-  const relatedInformation = ann.replacements.map(replacement => {
+  const relatedInformation = ann.replacements?.map(replacement => {
     const srcUri = fileUri(basedir, ann.file)
     const srcLocation = new vscode.Location(srcUri, range)
-    return new vscode.DiagnosticRelatedInformation(srcLocation, replacement)
+    const relInfo = new vscode.DiagnosticRelatedInformation(srcLocation, replacement)
+    return relInfo
   })
 
   // i wish they gave an all-args constructor
@@ -166,6 +191,8 @@ function annotationAsDiagnostic(basedir: vscode.Uri, ann: Annotation): vscode.Di
   diagnostic.source = ann.source
   diagnostic.relatedInformation = relatedInformation
   diagnostic.code = ann.referenceCode
+
+  output?.appendLine(`annotationAsDiagnostic -> ${JSON.stringify(diagnostic)}`)
   return diagnostic
 }
 

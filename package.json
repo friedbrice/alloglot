@@ -86,6 +86,12 @@
               "serverCommand": {
                 "type": "string"
               },
+              "serverArgs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "formatCommand": {
                 "type": "string"
               },
@@ -176,9 +182,7 @@
                     "file": {
                       "type": "string"
                     },
-                    "format": {
-                      "type": "string"
-                    },
+                    "format": {},
                     "mapping": {
                       "type": "object",
                       "required": [

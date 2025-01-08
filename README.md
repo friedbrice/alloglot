@@ -21,7 +21,7 @@ Most of the properties are optional, so you can make use of only the features th
 
 ```json
 {
-  "alloglot.activateCommand": "ghcid --command=\"cabal repl --ghc-options=-ddump-json\" --output=\"ghc-out.json\"",
+  "alloglot.activateCommand": "ghcid --outputfile=.ghcid-out.json",
   "alloglot.languages": [
     {
       "languageId": "cabal",
@@ -32,94 +32,25 @@ Most of the properties are optional, so you can make use of only the features th
       "languageId": "haskell",
       "serverCommand": "static-ls",
       "formatCommand": "fourmolu --mode stdout --stdin-input-file ${file}",
-      "onSaveCommand": ".bin/hlint --json --no-exit-code ${file} > hlint-out.json",
+      "onSaveCommand": "hlint --json --no-exit-code ${file} > .hlint-out.json",
       "apiSearchUrl": "https://hoogle.haskell.org/?hoogle=${query}",
-      "tags": [
-        {
-          "file": ".tags",
-          "initTagsCommand": "ghc-tags -c",
-          "refreshTagsCommand": "ghc-tags -c",
-          "completionsProvider": true,
-          "definitionsProvider": true,
-          "importsProvider": {
-            "importLinePattern": "import ${module} (${symbol})",
-            "matchFromFilepath": "([A-Z][A-Za-z0-9_']*)(\\/([A-Z][A-Za-z0-9_']*))*\\.hs",
-            "renderModuleName": [
-              {
-                "tag": "replace",
-                "from": "\\.hs",
-                "to": ""
-              },
-              {
-                "tag": "replace",
-                "from": "\\/",
-                "to": "."
-              }
-            ]
-          }
-        },
-        {
-          "file": ".tags-dependencies",
-          "completionsProvider": true,
-          "importsProvider": {
-            "importLinePattern": "import ${module}",
-            "matchFromFilepath": "(.*)",
-            "renderModuleName": [
-              {
-                "tag": "replace",
-                "from": "(Data\\.ByteString.*)",
-                "to": "$1 qualified as BS"
-              },
-              {
-                "tag": "replace",
-                "from": "(Data\\.Text.*)",
-                "to": "$1 qualified as T"
-              },
-              {
-                "tag": "replace",
-                "from": "(Data\\.ByteString.*Lazy.*) qualified as BS",
-                "to": "$1 qualified as BSL"
-              },
-              {
-                "tag": "replace",
-                "from": "(Data\\.Text.*Lazy.*) qualified as T",
-                "to": "$1 qualified as TL"
-              },
-              {
-                "tag": "replace",
-                "from": "(Data\\.Map.*)",
-                "to": "$1 qualified as M"
-              },
-              {
-                "tag": "replace",
-                "from": "(Data\\.Set.*)",
-                "to": "$1 qualified as S"
-              },
-              {
-                "tag": "replace",
-                "from": "(Data\\.Vector.*)",
-                "to": "$1 qualified as V"
-              }
-            ]
-          }
-        }
-      ],
       "annotations": [
         {
-          "file": "ghc-out.json",
-          "format": "jsonl",
+          "file": ".ghcid-out.json",
+          "format": ["messages"],
           "mapping": {
-            "file": ["span", "file"],
-            "startLine": ["span", "startLine"],
-            "startColumn": ["span", "startCol"],
-            "endLine": ["span", "endLine"],
-            "endColumn": ["span", "endCol"],
-            "message": ["doc"],
-            "severity": ["messageClass"]
+            "file": ["file"],
+            "startLine": ["start", "0"],
+            "startColumn": ["start", "1"],
+            "endLine": ["end", "0"],
+            "endColumn": ["end", "1"],
+            "includeEndColumn": true,
+            "message": ["message"],
+            "severity": ["severity"]
           }
         },
         {
-          "file": "hlint-out.json",
+          "file": ".hlint-out.json",
           "format": "json",
           "mapping": {
             "file": ["file"],
@@ -130,6 +61,23 @@ Most of the properties are optional, so you can make use of only the features th
             "message": ["hint"],
             "severity": ["severity"],
             "replacements": ["to"]
+          }
+        }
+      ],
+      "tags": [
+        {
+          "file": ".tags-dependencies",
+          "completionsProvider": true,
+          "definitionsProvider": true,
+          "importsProvider": {
+            "importLinePattern": "import ${module} (${symbol})",
+            "matchFromFilepath": "([A-Z][A-Za-z0-9_']*)(\\/([A-Z][A-Za-z0-9_']*))*\\.hs",
+            "renderModuleName": [
+              { "tag": "replace", "from": "\\.hs", "to": "" },
+              { "tag": "replace", "from": "\\/", "to": "." },
+              { "tag": "replace", "from": "(Data\\.Text.*)", "to": "$1 qualified as T" },
+              { "tag": "replace", "from": "(Data\\.Map.*)", "to": "$1 qualified as M" }
+            ]
           }
         }
       ]
@@ -144,9 +92,10 @@ Alloglot supports "zero-configuration" in the following sense.
 If there is no user-level or workspace-level configuration present,
 Alloglot will read configuration from a file `.vscode/alloglot.json` if one exists.
 The format for this file is to drop the `alloglot.`-prefix on top-level keys,
-but otherwise is the same.
-This file can be checked into a project's git repository without causing issue,
-since it is ignored if a user has user-level or workspace-level configuration.
+but otherwise is the same as the usual VS Code settings configuration schema.
+
+`.vscode/alloglot.json` can be checked into a project's git repository without causing issue,
+since it is ignored if a user has user-level or workspace-level configuration (or merged, configurable by user).
 An experienced contributor can create a `.vscode/alloglot.json` file and check it into the repository.
 This can greatly reduce the effort new contributors expend to onboard to a project,
 especially for large projects that use multiple programming languages, bespoke tooling, or complex build processes.
@@ -318,19 +267,21 @@ export type AnnotationsConfig = {
   file: string
 
   /**
-   * `json` for a top-level array of objects.
-   * `jsonl` for a newline-separated stream of objects.
+   * The format of the annotations file.
+   * `json` for a top-level array of annotation objects.
+   * `jsonl` for a newline-separated stream of annotation objects.
+   * A path to an array of annotation objects for a top-level JSON object.
    */
-  format: 'json' | 'jsonl'
+  format: 'json' | 'jsonl' | Array<string>
 
   /**
-   * Mapping between properties of the JSON objects and properties of `Annotation`.
+   * Mapping between properties of a compiler-generated annotation object and properties of `Annotation`.
    */
   mapping: AnnotationsMapping
 }
 
 /**
- * Intermediate representation of compiler-generated JSON output and VS Code diagnostics.
+ * Intermediate representation of compiler-generated annotation object and VS Code diagnostics.
  */
 export type Annotation = {
   source: string
@@ -341,7 +292,7 @@ export type Annotation = {
   endLine: number
   endColumn: number
   message: string
-  replacements: Array<string>
+  replacements?: Array<string>
   referenceCode?: string
 }
 
@@ -356,6 +307,7 @@ export type AnnotationsMapping = {
   startColumn?: Array<string>
   endLine?: Array<string>
   endColumn?: Array<string>
+  includeEndColumn?: boolean
   source?: Array<string>
   severity?: Array<string>
   replacements?: Array<string>
