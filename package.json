@@ -1,9 +1,9 @@
 {
-  "name": "alloglot",
-  "displayName": "Alloglot",
-  "description": "Language agnostic IDE for VS Code",
-  "version": "4.0.0",
-  "publisher": "friedbrice",
+  "name": "alloglot-mercury",
+  "displayName": "Alloglot Mercury",
+  "description": "Configurable Language agnostic IDE for VS Code",
+  "version": "4.0.3",
+  "publisher": "mercurytechnologiesinc",
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
     "type": "git",

@@ -11,6 +11,12 @@ This project adhere's to [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - `AnnotationsConfig.format` now accepts an array of strings. Use this to path to array of diagnostics, in case diagnostics file is an object.
 - Add verbose output to annotations provider.
 
+## [4.0.3]
+
+## [4.0.2]
+
+## [4.0.1]
+
 ## [4.0.0]
 
 - remove `deactiveCommand` b/c we couldn't guarantee it would always run.
